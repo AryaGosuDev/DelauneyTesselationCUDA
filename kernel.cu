@@ -39,10 +39,10 @@ uchar* d_img;
 
 // convert floating point rgba color to 32-bit integer
 __device__ unsigned int rgbaFloatToInt(float4 rgba) {
-    //rgba.x = __saturatef(rgba.x);   // clamp to [0.0, 1.0]
-    //rgba.y = __saturatef(rgba.y);
-    //rgba.z = __saturatef(rgba.z);
-    //rgba.w = __saturatef(rgba.w);
+    rgba.x = __saturatef(rgba.x);   // clamp to [0.0, 1.0]
+    rgba.y = __saturatef(rgba.y);
+    rgba.z = __saturatef(rgba.z);
+    rgba.w = __saturatef(rgba.w);
     return ((unsigned int)(rgba.w * 255.0f) << 24) |
         ((unsigned int)(rgba.z * 255.0f) << 16) |
         ((unsigned int)(rgba.y * 255.0f) << 8) |
@@ -70,31 +70,12 @@ __global__ void extractGradients(uchar* output, const cudaTextureObject_t texObj
     // Transform coordinates
     //u -= 0.5f;
     //v -= 0.5f;
-    
-    float4 curPix = tex2D<float4>(texObj, u, v);
-    //uchar4 curPix = tex2D<uchar4>(texObj, u, v);
-    //uchar curPix = tex2D<uchar>(texObj, u, v);
-    //float curPix = tex2D<float>(texObj, u, v);
-    //printf("%f : %f \n", curPix);
-    //printf("%f : \n", curPix);
-    //printf("%d : %d : %d \n", curPix.x, curPix.y, curPix.z);
-    //printf("%d \n", tex2D<uchar>(texObj, x * 3, y));
 
     //B     G     R       stride
 
-    //output[y * width + x] = rgbaIntToFloat(curPix);
-
-    //unsigned int c = rgbaFloatToInt(curPix);
-
-    //output[y * (width*4) + (x*4)] = (uchar)(c >> 24);
-    //output[y * (width * 4) + (x * 4) + 1] = (curPix.y * 255.0f);
-    //output[y * (width * 4) + (x * 4) + 2] = (curPix.z * 255.0f);
-    //output[y * (width * 4) + (x * 4) + 3] = 200;
     output[y * (width * 3) + (x * 3)] = tex2D<uchar>(texObj, x * 3, y);
-    //output[y * (width * 3) + (x * 3)] = (uchar)(((float)((unsigned int)curPix >> 24)) * 255.0f);
     output[y * (width * 3) + (x * 3) + 1] = tex2D<uchar>(texObj, x * 3 + 1, y);
     output[y * (width * 3) + (x * 3) + 2] = tex2D<uchar>(texObj, x * 3 + 2, y);
-    //output[y * (width * 4) + (x * 4) + 3] = 255;
 }
 
 void returnGPUCudaInfoResources(int deviceID) {
@@ -182,40 +163,6 @@ void returnGPUCudaInfoResources(int deviceID) {
 }
 
 void initTexture(int w, int h, cv::Mat& _img) {
-   
-    // allocate array and copy image data
-    //cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8, 8, 8, 8, cudaChannelFormatKindUnsigned);
-    //cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8, 8, 8, 8, cudaChannelFormatKindUnsigned);
-    //cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<uchar4>();  // modified
-    
-    checkCudaErrors(cudaMallocArray(&d_imageArray, &channelDesc, w, h));
-    checkCudaErrors(cudaMemcpy2DToArray(d_imageArray, 0, 0, _img.data, w * sizeof(uchar) * 4,
-        w * sizeof(uchar) * 4, h, cudaMemcpyHostToDevice));
-
-    cudaResourceDesc            texRes;
-    memset(&texRes, 0, sizeof(cudaResourceDesc));
-
-    texRes.resType = cudaResourceTypeArray;
-    texRes.res.array.array = d_imageArray;
-
-    cudaTextureDesc             texDescr;
-    memset(&texDescr, 0, sizeof(cudaTextureDesc));
-
-    texDescr.normalizedCoords = false;
-    texDescr.filterMode = cudaFilterModePoint;
-    texDescr.addressMode[0] = cudaAddressModeClamp;
-    texDescr.addressMode[1] = cudaAddressModeClamp;
-    //texDescr.readMode = cudaReadModeNormalizedFloat; 
-    texDescr.readMode = cudaReadModeElementType;
-
-    checkCudaErrors(cudaCreateTextureObject(&texObjLinear, &texRes, &texDescr, NULL));
-}
-
-void initTexture2(int w, int h, cv::Mat& _img) {
-
-    //cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8, 8, 8, 8, cudaChannelFormatKindUnsigned);
-    
 
     checkCudaErrors(cudaMallocPitch(&d_img, &pitch, _img.step1(), h));
     checkCudaErrors(cudaMemcpy2D(d_img, pitch, _img.data, _img.step1(),
@@ -239,7 +186,6 @@ void initTexture2(int w, int h, cv::Mat& _img) {
     texDescr.addressMode[0] = cudaAddressModeClamp;
     texDescr.addressMode[1] = cudaAddressModeClamp;
     texDescr.readMode = cudaReadModeElementType;
-    //texDescr.readMode = cudaReadModeNormalizedFloat;
 
     checkCudaErrors(cudaCreateTextureObject(&texObjLinear, &texRes, &texDescr, NULL));
 }
@@ -248,7 +194,6 @@ int main() {
     try {
 
         returnGPUCudaInfoResources(0);
-        //const std::string filename = "C:\\Users\\karratdev\\Projects\\DelauneyTesselation\\standard_test_images\\standard_test_images\\lena_color_256.tif";
         const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_256.tif";
         cv::Mat image = imread(filename, IMREAD_COLOR);
 
@@ -269,8 +214,7 @@ int main() {
         cv::circle(image, pt, 2, 1);
 
         initTexture(image.cols, image.rows, image);
-        //initTexture2(image.cols, image.rows, image);
-
+       
         // Allocate result of transformation in device memory
         uchar* d_output;
         checkCudaErrors(cudaMalloc((void **) &d_output, image.cols * image.rows * sizeof(uchar) * 3));
