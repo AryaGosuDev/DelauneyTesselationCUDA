@@ -2,7 +2,6 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-
 #include "opencv2/core/utility.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
@@ -14,6 +13,7 @@
 
 using namespace cv;
 cudaTextureObject_t texObjLinear;
+cudaSurfaceObject_t  outputSurfRef;
 constexpr bool CV_SUCCESS = true;
 cudaArray* d_imageArray = 0;
 size_t pitch;
@@ -58,24 +58,195 @@ __device__ float4 rgbaIntToFloat(unsigned int c) {
     return rgba;
 }
 
-__global__ void extractGradients(uchar* output, const cudaTextureObject_t texObj,  int width, int height) {
+__device__ void gaussianBlur(float* d_intensity_img, cudaSurfaceObject_t  outputSurfRef, const int x, const int y, const int width) {
+    float tempGaussianValues[25]; float data;
+    surf2Dread(&data, outputSurfRef, ((x - 2) * 4), y - 2, cudaBoundaryModeClamp); tempGaussianValues[0] = data;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y - 2, cudaBoundaryModeClamp); tempGaussianValues[1] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x) * 4),     y - 2, cudaBoundaryModeClamp); tempGaussianValues[2] = data * 7.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y - 2, cudaBoundaryModeClamp); tempGaussianValues[3] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 2) * 4), y - 2, cudaBoundaryModeClamp); tempGaussianValues[4] = data;
+    surf2Dread(&data, outputSurfRef, ((x - 2) * 4), y - 1, cudaBoundaryModeClamp); tempGaussianValues[5] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y - 1, cudaBoundaryModeClamp); tempGaussianValues[6] = data * 16.0f;
+    surf2Dread(&data, outputSurfRef, ((x) * 4),     y - 1, cudaBoundaryModeClamp); tempGaussianValues[7] = data * 26.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y - 1, cudaBoundaryModeClamp); tempGaussianValues[8] = data * 16.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 2) * 4), y - 1, cudaBoundaryModeClamp); tempGaussianValues[9] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 2) * 4), y    , cudaBoundaryModeClamp); tempGaussianValues[10] = data * 7.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y    , cudaBoundaryModeClamp); tempGaussianValues[11] = data * 26.0f;
+    surf2Dread(&data, outputSurfRef, ((x) * 4),     y    , cudaBoundaryModeClamp); tempGaussianValues[12] = data * 41.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y    , cudaBoundaryModeClamp); tempGaussianValues[13] = data * 26.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 2) * 4), y    , cudaBoundaryModeClamp); tempGaussianValues[14] = data * 7.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 2) * 4), y + 1, cudaBoundaryModeClamp); tempGaussianValues[15] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y + 1, cudaBoundaryModeClamp); tempGaussianValues[16] = data * 16.0f;
+    surf2Dread(&data, outputSurfRef, ((x) * 4),     y + 1, cudaBoundaryModeClamp); tempGaussianValues[17] = data * 26.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y + 1, cudaBoundaryModeClamp); tempGaussianValues[18] = data * 16.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 2) * 4), y + 1, cudaBoundaryModeClamp); tempGaussianValues[19] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 2) * 4), y + 2, cudaBoundaryModeClamp); tempGaussianValues[20] = data;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y + 2, cudaBoundaryModeClamp); tempGaussianValues[21] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x) * 4),     y + 2, cudaBoundaryModeClamp); tempGaussianValues[22] = data * 7.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y + 2, cudaBoundaryModeClamp); tempGaussianValues[23] = data * 4.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 2) * 4), y + 2, cudaBoundaryModeClamp); tempGaussianValues[24] = data;
+    data = 0.0f;
+    for (int i = 0; i < 25; ++i) {
+        data += tempGaussianValues[i];
+    }
+    data /= 273.0f;
+    d_intensity_img[y * width + x] = data;
+}
+
+__device__ void gaussianBlurSmall(float* d_intensity_img, cudaSurfaceObject_t  outputSurfRef, const int x, const int y, const int width) {
+    float tempGaussianValues[9]; float data;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y - 1, cudaBoundaryModeClamp); tempGaussianValues[0] = data;
+    surf2Dread(&data, outputSurfRef, ((x) * 4), y - 1, cudaBoundaryModeClamp); tempGaussianValues[1] = data * 2.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y - 1, cudaBoundaryModeClamp); tempGaussianValues[2] = data ;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y , cudaBoundaryModeClamp); tempGaussianValues[3] = data * 2.0f;
+    surf2Dread(&data, outputSurfRef, ((x) * 4), y , cudaBoundaryModeClamp); tempGaussianValues[4] = data * 10.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y , cudaBoundaryModeClamp); tempGaussianValues[5] = data * 2.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y + 1, cudaBoundaryModeClamp); tempGaussianValues[6] = data;
+    surf2Dread(&data, outputSurfRef, ((x) * 4), y + 1, cudaBoundaryModeClamp); tempGaussianValues[7] = data * 2.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y + 1, cudaBoundaryModeClamp); tempGaussianValues[8] = data;
+    data = 0.0f;
+    for (int i = 0; i < 9; ++i) {
+        data += tempGaussianValues[i];
+    }
+    data /= 22.0f;
+    d_intensity_img[y * width + x] = data;
+}
+
+__global__ void loadIntensitySurface (const cudaTextureObject_t texObj, cudaSurfaceObject_t  outputSurfRef, 
+    float* d_intensity_img, int width, int height) {
+    // Calculate normalized texture coordinates
+    unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    d_intensity_img[y * width + x] = ((tex2D<uchar>(texObj, x * 3, y) +
+                                       tex2D<uchar>(texObj, x * 3 + 1, y) +
+                                       tex2D<uchar>(texObj, x * 3 + 2, y)) / 3.0f) / 255.0f;
+
+    surf2Dwrite(d_intensity_img[y * width + x], outputSurfRef, (x * 4), y);
+
+}
+
+__global__ void extractGradients(uchar* output,
+    float * x_grad, float * y_grad, float * d_intensity_img,
+    const cudaTextureObject_t texObj, cudaSurfaceObject_t  outputSurfRef,  
+    int width, int height) {
 
     // Calculate normalized texture coordinates
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
     
-    float u = x / (float)width;
-    float v = y / (float)height;
+    //float u = x / (float)width;
+    //float v = y / (float)height;
 
     // Transform coordinates
     //u -= 0.5f;
     //v -= 0.5f;
 
-    //B     G     R       stride
+    /*
+    d_intensity_img[y * width + x] = ((tex2D<uchar>(texObj, x * 3, y) + 
+                                      tex2D<uchar>(texObj, x * 3 + 1, y) + 
+                                      tex2D<uchar>(texObj, x * 3 + 2, y)) / 3.0f) / 255.0f;
 
-    output[y * (width * 3) + (x * 3)] = tex2D<uchar>(texObj, x * 3, y);
-    output[y * (width * 3) + (x * 3) + 1] = tex2D<uchar>(texObj, x * 3 + 1, y);
-    output[y * (width * 3) + (x * 3) + 2] = tex2D<uchar>(texObj, x * 3 + 2, y);
+    surf2Dwrite(d_intensity_img[y * width + x], outputSurfRef, (x * 4), y);
+
+    __syncthreads();
+    */
+    //perform gaussian blur to diminish noise in reading gradient
+    //gaussianBlurSmall(d_intensity_img, outputSurfRef, x, y, width);
+    //surf2Dwrite(d_intensity_img[y * width + x], outputSurfRef, (x * 4), y);
+    __syncthreads();
+
+    float tempSobelValues[6]; float data; 
+    surf2Dread(&data, outputSurfRef, ((x-1) * 4), y - 1, cudaBoundaryModeClamp); tempSobelValues[0] = data * 5.0f;
+    surf2Dread(&data, outputSurfRef, ((x-1) * 4), y, cudaBoundaryModeClamp); tempSobelValues[1] = data * 8.0f;
+    surf2Dread(&data, outputSurfRef, ((x-1) * 4), y+1, cudaBoundaryModeClamp); tempSobelValues[2] = data * 5.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y-1, cudaBoundaryModeClamp); tempSobelValues[3] = data * 5.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y, cudaBoundaryModeClamp); tempSobelValues[4] = data * 8.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y+1, cudaBoundaryModeClamp); tempSobelValues[5] = data * 5.0f;
+
+    data = (tempSobelValues[0] + tempSobelValues[1] + tempSobelValues[2] - tempSobelValues[3] -
+        tempSobelValues[4] - tempSobelValues[5]) / 36.0f;
+    
+    x_grad[y * width + x] = data;
+
+    if (y == 143 && x == 117) {
+
+
+        for (int i = 0; i < 6; ++i) printf(" : %f : ", tempSobelValues[i]);
+        printf("\n");
+
+    }
+
+    __syncthreads();
+
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y - 1, cudaBoundaryModeClamp); tempSobelValues[0] = data * 5.0f;
+    surf2Dread(&data, outputSurfRef, (x * 4), y - 1, cudaBoundaryModeClamp); tempSobelValues[1] = data * 8.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y - 1, cudaBoundaryModeClamp); tempSobelValues[2] = data * 5.0f;
+    surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y + 1, cudaBoundaryModeClamp); tempSobelValues[3] = data * 5.0f;
+    surf2Dread(&data, outputSurfRef, (x * 4), y + 1, cudaBoundaryModeClamp); tempSobelValues[4] = data * 8.0f;
+    surf2Dread(&data, outputSurfRef, ((x + 1) * 4), y + 1, cudaBoundaryModeClamp); tempSobelValues[5] = data * 5.0f;
+
+    data = (tempSobelValues[0] + tempSobelValues[1] + tempSobelValues[2] - tempSobelValues[3] -
+        tempSobelValues[4] - tempSobelValues[5]) / 36.0f;
+
+    y_grad[y * width + x] = data;
+
+    if (y == 143 && x == 117) {
+
+
+        for ( int i = 0 ; i < 6 ; ++i) printf(" : %f : ", tempSobelValues[i]);
+        
+    }
+
+    __syncthreads();
+
+    float Ix2 = x_grad[y * width + x] * x_grad[y * width + x];
+    float Iy2 = y_grad[y * width + x] * y_grad[y * width + x];
+    float Ixy = x_grad[y * width + x] * y_grad[y * width + x];
+
+    float eigen1 = ((Ix2 + Iy2) + sqrt((Ix2 * Ix2 + 2.0f * Ix2 * Iy2 + Iy2 * Iy2) - ( 4.0f * ( Ix2 * Iy2 - Ixy * Ixy)))) / 2.0f;
+    float eigen2 = ((Ix2 + Iy2) - sqrt((Ix2 * Ix2 + 2.0f * Ix2 * Iy2 + Iy2 * Iy2) - ( 4.0f * ( Ix2 * Iy2 - Ixy * Ixy)))) / 2.0f;
+
+    float R = eigen1 * eigen2 - ( (eigen1 + eigen2) * (eigen1 + eigen2));
+
+    __syncthreads();
+    if (x >= 183 && x <= 187 && y >= 39 && y <= 43) {
+        //printf("%d : %d : %f : %0.30f : %f : %f \n", x, y, eigen1, eigen2, R, sqrt((Ix2 * Ix2 + 2.0f * Ix2 * Iy2 + Iy2 * Iy2) - (4.0f * (Ix2 * Iy2 - Ixy * Ixy))));
+        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy );
+        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy);
+        //printf("%f : %f\n", x_grad[y * width + x], y_grad[y * width + x]);
+        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy);
+        
+
+    }
+
+    if (y >= 183 && y <= 187 && x >= 39 && x <= 43) {
+        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy);
+    }
+
+    //if (x == 130 && y == 41 )
+    //printf("%d : %d : %f : %f : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy, x_grad[y * width + x], y_grad[y * width + x]);
+    //if ( abs(R) >  50.0)
+    //printf("%d : %d : %f : %0.30f : %f : %f \n", x, y, eigen1, eigen2, R);
+
+    //B     G     R       stride
+    //output[y * (width * 3) + (x * 3)] = (sqrt(x_grad[y * width + x] * x_grad[y * width + x] + y_grad[y * width + x] * y_grad[y * width + x])) * 255.f;
+    //output[y * (width * 3) + (x * 3) + 1] = (sqrt(x_grad[y * width + x] * x_grad[y * width + x] + y_grad[y * width + x] * y_grad[y * width + x])) * 255.f;
+    //output[y * (width * 3) + (x * 3) + 2] = (sqrt(x_grad[y * width + x] * x_grad[y * width + x] + y_grad[y * width + x] * y_grad[y * width + x])) * 255.0f;
+    //output[y * (width * 3) + (x * 3)] = static_cast<uchar>(d_intensity_img[y * width + x] * 255.0f);
+    //output[y * (width * 3) + (x * 3) + 1] = static_cast<uchar>(d_intensity_img[y * width + x] * 255.0f);
+    //output[y * (width * 3) + (x * 3) + 2] = static_cast<uchar>(d_intensity_img[y * width + x] * 255.0f);
+    
+    //float data;
+    surf2Dread(&data, outputSurfRef, (x * 4) ,y);
+    //printf("%f\n", data);
+    //float fillData = sqrt(y_grad[y * width + x] * y_grad[y * width + x] + x_grad[y * width + x] * x_grad[y * width + x]) * 255.0f;
+    float fillData = abs(R) * 255.0f;
+    output[y * (width * 3) + (x * 3)] = static_cast<uchar>(fillData);
+    output[y * (width * 3) + (x * 3) + 1] = static_cast<uchar>(fillData);
+    output[y * (width * 3) + (x * 3) + 2] = static_cast<uchar>(fillData);
+    
+    
 }
 
 void returnGPUCudaInfoResources(int deviceID) {
@@ -190,34 +361,46 @@ void initTexture(int w, int h, cv::Mat& _img) {
     checkCudaErrors(cudaCreateTextureObject(&texObjLinear, &texRes, &texDescr, NULL));
 }
 
+void initSurface(int w, int h) {
+    
+    cudaArray* cuOutputArray;
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+    checkCudaErrors(cudaMallocArray(&cuOutputArray, &channelDesc, w, h, cudaArraySurfaceLoadStore));
+
+    cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = cuOutputArray;
+    cudaCreateSurfaceObject(&outputSurfRef, &resDesc);
+}
+
 int main() {
     try {
-
+        
         returnGPUCudaInfoResources(0);
-        const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_256.tif";
+        //const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_256.tif";
+        //const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_512.tif";
+        const std::string filename = ".\\standard_test_images\\standard_test_images\\sample_line_box.tif";
         cv::Mat image = imread(filename, IMREAD_COLOR);
-
-        /*
-        uchar* testOutImage;
-        testOutImage = (uchar*)malloc(image.cols * image.rows * sizeof(uchar) * 3);
-        memcpy(testOutImage, image.data, image.cols * image.rows * sizeof(uchar) * 3);
-        cv::Mat imageOutTest = cv::Mat(image.rows, image.cols, CV_8UC3, testOutImage);
-        CHECK_CV(imwrite(".\\standard_test_images\\standard_test_images\\lena_color_256_test.png", imageOutTest));
-        */
 
         if (image.empty()) {
             printf("Cannot read image file: %s\n", filename.c_str());
             return -1;
         }
 
-        Point pt; pt.x = 10; pt.y = 8;
-        cv::circle(image, pt, 2, 1);
-
         initTexture(image.cols, image.rows, image);
+        initSurface(image.cols, image.rows);
        
         // Allocate result of transformation in device memory
         uchar* d_output;
-        checkCudaErrors(cudaMalloc((void **) &d_output, image.cols * image.rows * sizeof(uchar) * 3));
+        checkCudaErrors(cudaMalloc((void**)&d_output, image.cols * image.rows * sizeof(uchar) * 3));
+        float* d_x_gradient;
+        checkCudaErrors(cudaMalloc((void**)&d_x_gradient, image.cols * image.rows * sizeof(float) ));
+        float* d_y_gradient;
+        checkCudaErrors(cudaMalloc((void**)&d_y_gradient, image.cols * image.rows * sizeof(float) ));
+        float* d_intensity_img;
+        checkCudaErrors(cudaMalloc((void**)&d_intensity_img, image.cols * image.rows * sizeof(float)));
+
 
         uchar* gpuRef;
         gpuRef = (uchar*)malloc(image.cols * image.rows * sizeof(uchar) * 3);
@@ -226,15 +409,42 @@ int main() {
         dim3 dimBlock(16, 16);
         dim3 dimGrid((image.cols + dimBlock.x - 1) / dimBlock.x,
             (image.rows + dimBlock.y - 1) / dimBlock.y);
-        printf("Kernel Dimension :\n   Block size : %i , %i \n    Grid size : %i , %i",
+        printf("Kernel Dimension :\n   Block size : %i , %i \n    Grid size : %i , %i\n",
             dimBlock.x, dimBlock.y, dimGrid.x, dimGrid.y);
-        extractGradients <<< dimGrid, dimBlock >>> (d_output, texObjLinear, image.cols, image.rows);
+
+        loadIntensitySurface << < dimGrid, dimBlock >> > (texObjLinear, outputSurfRef, d_intensity_img, image.cols, image.rows);
+           
+        cudaDeviceSynchronize();
+        extractGradients <<< dimGrid, dimBlock >>> (d_output, d_x_gradient, d_y_gradient, d_intensity_img,
+                                                    texObjLinear, outputSurfRef, image.cols, image.rows);
 
         checkCudaErrors(cudaMemcpy(gpuRef, d_output, image.cols * image.rows * sizeof(uchar) * 3, cudaMemcpyDeviceToHost));
+        
+
         cv::Mat imageOut = cv::Mat(image.rows, image.cols, CV_8UC3, gpuRef);
+        
+        std::vector<std::pair<uint32_t, std::pair<int, int>>> sortedListGradients;
+        for (size_t i = 0; i < image.rows; ++i) {
+            for (size_t j = 0; j < image.cols; ++j) {
+
+                sortedListGradients.push_back(std::pair<uint32_t, std::pair<int, int>>(gpuRef[(i * image.cols * 3) + (j * 3)],
+                    std::pair<int, int>(i, j)));
+            }
+        }
+        std::sort(sortedListGradients.begin(), sortedListGradients.end(), [](std::pair<uint32_t, std::pair<int, int>>& a,
+            std::pair<uint32_t, std::pair<int, int>>& b) { return a.first > b.first; });
+
+        for (int i = 0; i < 10; ++i) {
+            Point pt;
+            pt.y = sortedListGradients[i].second.first ;
+            pt.x = sortedListGradients[i].second.second;
+
+            cv::circle(imageOut, pt, 2, cv::Scalar(255, 255, 255));
+        }
+        
         CHECK_CV(imwrite(".\\standard_test_images\\standard_test_images\\lena_color_256.png", imageOut));
 
-        if (CV_SUCCESS == true) printf("\nSuccess !");
+        if (CV_SUCCESS == true) printf("\nSuccess !\n");
 
     }
     catch (Exception ex) {
