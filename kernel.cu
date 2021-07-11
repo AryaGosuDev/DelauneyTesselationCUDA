@@ -135,25 +135,11 @@ __global__ void extractGradients(uchar* output,
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
     
-    //float u = x / (float)width;
-    //float v = y / (float)height;
 
-    // Transform coordinates
-    //u -= 0.5f;
-    //v -= 0.5f;
-
-    /*
-    d_intensity_img[y * width + x] = ((tex2D<uchar>(texObj, x * 3, y) + 
-                                      tex2D<uchar>(texObj, x * 3 + 1, y) + 
-                                      tex2D<uchar>(texObj, x * 3 + 2, y)) / 3.0f) / 255.0f;
-
-    surf2Dwrite(d_intensity_img[y * width + x], outputSurfRef, (x * 4), y);
-
-    __syncthreads();
-    */
     //perform gaussian blur to diminish noise in reading gradient
     //gaussianBlurSmall(d_intensity_img, outputSurfRef, x, y, width);
     //surf2Dwrite(d_intensity_img[y * width + x], outputSurfRef, (x * 4), y);
+
     __syncthreads();
 
     float tempSobelValues[6]; float data; 
@@ -169,13 +155,6 @@ __global__ void extractGradients(uchar* output,
     
     x_grad[y * width + x] = data;
 
-    if (y == 143 && x == 117) {
-
-
-        for (int i = 0; i < 6; ++i) printf(" : %f : ", tempSobelValues[i]);
-        printf("\n");
-
-    }
 
     __syncthreads();
 
@@ -191,12 +170,6 @@ __global__ void extractGradients(uchar* output,
 
     y_grad[y * width + x] = data;
 
-    if (y == 143 && x == 117) {
-
-
-        for ( int i = 0 ; i < 6 ; ++i) printf(" : %f : ", tempSobelValues[i]);
-        
-    }
 
     __syncthreads();
 
@@ -210,32 +183,6 @@ __global__ void extractGradients(uchar* output,
     float R = eigen1 * eigen2 - ( (eigen1 + eigen2) * (eigen1 + eigen2));
 
     __syncthreads();
-    if (x >= 183 && x <= 187 && y >= 39 && y <= 43) {
-        //printf("%d : %d : %f : %0.30f : %f : %f \n", x, y, eigen1, eigen2, R, sqrt((Ix2 * Ix2 + 2.0f * Ix2 * Iy2 + Iy2 * Iy2) - (4.0f * (Ix2 * Iy2 - Ixy * Ixy))));
-        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy );
-        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy);
-        //printf("%f : %f\n", x_grad[y * width + x], y_grad[y * width + x]);
-        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy);
-        
-
-    }
-
-    if (y >= 183 && y <= 187 && x >= 39 && x <= 43) {
-        //printf("%d : %d : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy);
-    }
-
-    //if (x == 130 && y == 41 )
-    //printf("%d : %d : %f : %f : %f : %f : %f \n", x, y, Ix2, Iy2, Ixy, x_grad[y * width + x], y_grad[y * width + x]);
-    //if ( abs(R) >  50.0)
-    //printf("%d : %d : %f : %0.30f : %f : %f \n", x, y, eigen1, eigen2, R);
-
-    //B     G     R       stride
-    //output[y * (width * 3) + (x * 3)] = (sqrt(x_grad[y * width + x] * x_grad[y * width + x] + y_grad[y * width + x] * y_grad[y * width + x])) * 255.f;
-    //output[y * (width * 3) + (x * 3) + 1] = (sqrt(x_grad[y * width + x] * x_grad[y * width + x] + y_grad[y * width + x] * y_grad[y * width + x])) * 255.f;
-    //output[y * (width * 3) + (x * 3) + 2] = (sqrt(x_grad[y * width + x] * x_grad[y * width + x] + y_grad[y * width + x] * y_grad[y * width + x])) * 255.0f;
-    //output[y * (width * 3) + (x * 3)] = static_cast<uchar>(d_intensity_img[y * width + x] * 255.0f);
-    //output[y * (width * 3) + (x * 3) + 1] = static_cast<uchar>(d_intensity_img[y * width + x] * 255.0f);
-    //output[y * (width * 3) + (x * 3) + 2] = static_cast<uchar>(d_intensity_img[y * width + x] * 255.0f);
     
     //float data;
     surf2Dread(&data, outputSurfRef, (x * 4) ,y);
@@ -379,8 +326,8 @@ int main() {
         
         returnGPUCudaInfoResources(0);
         //const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_256.tif";
-        //const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_512.tif";
-        const std::string filename = ".\\standard_test_images\\standard_test_images\\sample_line_box.tif";
+        const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_512.tif";
+        //const std::string filename = ".\\standard_test_images\\standard_test_images\\sample_line_box.tif";
         cv::Mat image = imread(filename, IMREAD_COLOR);
 
         if (image.empty()) {
@@ -412,7 +359,7 @@ int main() {
         printf("Kernel Dimension :\n   Block size : %i , %i \n    Grid size : %i , %i\n",
             dimBlock.x, dimBlock.y, dimGrid.x, dimGrid.y);
 
-        loadIntensitySurface << < dimGrid, dimBlock >> > (texObjLinear, outputSurfRef, d_intensity_img, image.cols, image.rows);
+        loadIntensitySurface <<< dimGrid, dimBlock >>> (texObjLinear, outputSurfRef, d_intensity_img, image.cols, image.rows);
            
         cudaDeviceSynchronize();
         extractGradients <<< dimGrid, dimBlock >>> (d_output, d_x_gradient, d_y_gradient, d_intensity_img,
@@ -421,7 +368,10 @@ int main() {
         checkCudaErrors(cudaMemcpy(gpuRef, d_output, image.cols * image.rows * sizeof(uchar) * 3, cudaMemcpyDeviceToHost));
         
 
-        cv::Mat imageOut = cv::Mat(image.rows, image.cols, CV_8UC3, gpuRef);
+        //cv::Mat imageOut = cv::Mat(image.rows, image.cols, CV_8UC3, gpuRef);
+        cv::Mat imageOut = image;
+
+                            
         
         std::vector<std::pair<uint32_t, std::pair<int, int>>> sortedListGradients;
         for (size_t i = 0; i < image.rows; ++i) {
@@ -434,10 +384,11 @@ int main() {
         std::sort(sortedListGradients.begin(), sortedListGradients.end(), [](std::pair<uint32_t, std::pair<int, int>>& a,
             std::pair<uint32_t, std::pair<int, int>>& b) { return a.first > b.first; });
 
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < 1000; ++i) {
             Point pt;
             pt.y = sortedListGradients[i].second.first ;
             pt.x = sortedListGradients[i].second.second;
+            std::cout << sortedListGradients[i].first << std::endl;
 
             cv::circle(imageOut, pt, 2, cv::Scalar(255, 255, 255));
         }
