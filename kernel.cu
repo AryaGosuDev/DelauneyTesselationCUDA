@@ -122,11 +122,12 @@ __global__ void loadIntensitySurface (const cudaTextureObject_t texObj, cudaSurf
                                        tex2D<uchar>(texObj, x * 3 + 1, y) +
                                        tex2D<uchar>(texObj, x * 3 + 2, y)) / 3.0f) / 255.0f;
 
+    //write into the surface
     surf2Dwrite(d_intensity_img[y * width + x], outputSurfRef, (x * 4), y);
 
 }
 
-__global__ void extractGradients(uchar* output,
+__global__ void extractGradients(uchar* output, float * output_float,
     float * x_grad, float * y_grad, float * d_intensity_img,
     const cudaTextureObject_t texObj, cudaSurfaceObject_t  outputSurfRef,  
     int width, int height) {
@@ -192,6 +193,10 @@ __global__ void extractGradients(uchar* output,
     output[y * (width * 3) + (x * 3)] = static_cast<uchar>(fillData);
     output[y * (width * 3) + (x * 3) + 1] = static_cast<uchar>(fillData);
     output[y * (width * 3) + (x * 3) + 2] = static_cast<uchar>(fillData);
+
+    output_float[y * (width) + (x)] = abs(R);
+    
+    
     
     
 }
@@ -341,6 +346,8 @@ int main() {
         // Allocate result of transformation in device memory
         uchar* d_output;
         checkCudaErrors(cudaMalloc((void**)&d_output, image.cols * image.rows * sizeof(uchar) * 3));
+        float* d_output_float;
+        checkCudaErrors(cudaMalloc((void**)&d_output_float, image.cols * image.rows * sizeof(float) ));
         float* d_x_gradient;
         checkCudaErrors(cudaMalloc((void**)&d_x_gradient, image.cols * image.rows * sizeof(float) ));
         float* d_y_gradient;
@@ -351,6 +358,9 @@ int main() {
 
         uchar* gpuRef;
         gpuRef = (uchar*)malloc(image.cols * image.rows * sizeof(uchar) * 3);
+        float* gpuRefFloat;
+        gpuRefFloat = (float*)malloc(image.cols * image.rows * sizeof(float) );
+
 
         // Invoke kernel
         dim3 dimBlock(16, 16);
@@ -358,14 +368,17 @@ int main() {
             (image.rows + dimBlock.y - 1) / dimBlock.y);
         printf("Kernel Dimension :\n   Block size : %i , %i \n    Grid size : %i , %i\n",
             dimBlock.x, dimBlock.y, dimGrid.x, dimGrid.y);
-
+        // texObjLinear = input image in uchar , outputSurfRef = intermediate surface, d_intensity_img = intermediate array
         loadIntensitySurface <<< dimGrid, dimBlock >>> (texObjLinear, outputSurfRef, d_intensity_img, image.cols, image.rows);
            
         cudaDeviceSynchronize();
-        extractGradients <<< dimGrid, dimBlock >>> (d_output, d_x_gradient, d_y_gradient, d_intensity_img,
+
+
+        extractGradients <<< dimGrid, dimBlock >>> (d_output, d_output_float, d_x_gradient, d_y_gradient, d_intensity_img,
                                                     texObjLinear, outputSurfRef, image.cols, image.rows);
 
         checkCudaErrors(cudaMemcpy(gpuRef, d_output, image.cols * image.rows * sizeof(uchar) * 3, cudaMemcpyDeviceToHost));
+        checkCudaErrors(cudaMemcpy(gpuRefFloat, d_output_float, image.cols * image.rows * sizeof(float), cudaMemcpyDeviceToHost));
         
 
         //cv::Mat imageOut = cv::Mat(image.rows, image.cols, CV_8UC3, gpuRef);
@@ -374,21 +387,29 @@ int main() {
                             
         
         std::vector<std::pair<uint32_t, std::pair<int, int>>> sortedListGradients;
+        std::vector<std::pair<float, std::pair<int, int>>> sortedListGradientsFloat;
         for (size_t i = 0; i < image.rows; ++i) {
             for (size_t j = 0; j < image.cols; ++j) {
 
                 sortedListGradients.push_back(std::pair<uint32_t, std::pair<int, int>>(gpuRef[(i * image.cols * 3) + (j * 3)],
                     std::pair<int, int>(i, j)));
+                sortedListGradientsFloat.push_back(std::pair<float, std::pair<int, int>>(gpuRefFloat[(i * image.cols ) + (j )],
+                    std::pair<int, int>(i, j)));
             }
         }
         std::sort(sortedListGradients.begin(), sortedListGradients.end(), [](std::pair<uint32_t, std::pair<int, int>>& a,
             std::pair<uint32_t, std::pair<int, int>>& b) { return a.first > b.first; });
+        std::sort(sortedListGradientsFloat.begin(), sortedListGradientsFloat.end(), [](std::pair<float, std::pair<int, int>>& a,
+            std::pair<float, std::pair<int, int>>& b) { return a.first > b.first; });
 
         for (int i = 0; i < 1000; ++i) {
             Point pt;
-            pt.y = sortedListGradients[i].second.first ;
-            pt.x = sortedListGradients[i].second.second;
-            std::cout << sortedListGradients[i].first << std::endl;
+            //pt.y = sortedListGradients[i].second.first ;
+            //pt.x = sortedListGradients[i].second.second;
+            //std::cout << sortedListGradients[i].first << std::endl;
+            pt.y = sortedListGradientsFloat[i].second.first ;
+            pt.x = sortedListGradientsFloat[i].second.second;
+            //std::cout << sortedListGradientsFloat[i].first << std::endl;
 
             cv::circle(imageOut, pt, 2, cv::Scalar(255, 255, 255));
         }
