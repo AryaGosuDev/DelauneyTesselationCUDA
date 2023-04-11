@@ -135,8 +135,6 @@ __global__ void extractGradients(uchar* output, float * output_float,
     // Calculate normalized texture coordinates
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
-    
-
     //perform gaussian blur to diminish noise in reading gradient
     //gaussianBlurSmall(d_intensity_img, outputSurfRef, x, y, width);
     //surf2Dwrite(d_intensity_img[y * width + x], outputSurfRef, (x * 4), y);
@@ -156,7 +154,6 @@ __global__ void extractGradients(uchar* output, float * output_float,
     
     x_grad[y * width + x] = data;
 
-
     __syncthreads();
 
     surf2Dread(&data, outputSurfRef, ((x - 1) * 4), y - 1, cudaBoundaryModeClamp); tempSobelValues[0] = data * 5.0f;
@@ -170,7 +167,6 @@ __global__ void extractGradients(uchar* output, float * output_float,
         tempSobelValues[4] - tempSobelValues[5]) / 36.0f;
 
     y_grad[y * width + x] = data;
-
 
     __syncthreads();
 
@@ -195,10 +191,6 @@ __global__ void extractGradients(uchar* output, float * output_float,
     output[y * (width * 3) + (x * 3) + 2] = static_cast<uchar>(fillData);
 
     output_float[y * (width) + (x)] = abs(R);
-    
-    
-    
-    
 }
 
 void returnGPUCudaInfoResources(int deviceID) {
@@ -326,13 +318,14 @@ void initSurface(int w, int h) {
     cudaCreateSurfaceObject(&outputSurfRef, &resDesc);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     try {
         
         returnGPUCudaInfoResources(0);
         //const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_256.tif";
-        const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_512.tif";
+        //const std::string filename = ".\\standard_test_images\\standard_test_images\\lena_color_512.tif";
         //const std::string filename = ".\\standard_test_images\\standard_test_images\\sample_line_box.tif";
+        const std::string filename = ".\\standard_test_images\\standard_test_images\\emma_512.tif";
         cv::Mat image = imread(filename, IMREAD_COLOR);
 
         if (image.empty()) {
@@ -355,12 +348,10 @@ int main() {
         float* d_intensity_img;
         checkCudaErrors(cudaMalloc((void**)&d_intensity_img, image.cols * image.rows * sizeof(float)));
 
-
         uchar* gpuRef;
         gpuRef = (uchar*)malloc(image.cols * image.rows * sizeof(uchar) * 3);
         float* gpuRefFloat;
         gpuRefFloat = (float*)malloc(image.cols * image.rows * sizeof(float) );
-
 
         // Invoke kernel
         dim3 dimBlock(16, 16);
@@ -373,19 +364,15 @@ int main() {
            
         cudaDeviceSynchronize();
 
-
         extractGradients <<< dimGrid, dimBlock >>> (d_output, d_output_float, d_x_gradient, d_y_gradient, d_intensity_img,
                                                     texObjLinear, outputSurfRef, image.cols, image.rows);
 
         checkCudaErrors(cudaMemcpy(gpuRef, d_output, image.cols * image.rows * sizeof(uchar) * 3, cudaMemcpyDeviceToHost));
         checkCudaErrors(cudaMemcpy(gpuRefFloat, d_output_float, image.cols * image.rows * sizeof(float), cudaMemcpyDeviceToHost));
         
-
         //cv::Mat imageOut = cv::Mat(image.rows, image.cols, CV_8UC3, gpuRef);
         cv::Mat imageOut = image;
 
-                            
-        
         std::vector<std::pair<uint32_t, std::pair<int, int>>> sortedListGradients;
         std::vector<std::pair<float, std::pair<int, int>>> sortedListGradientsFloat;
         for (size_t i = 0; i < image.rows; ++i) {
@@ -397,24 +384,47 @@ int main() {
                     std::pair<int, int>(i, j)));
             }
         }
+
         std::sort(sortedListGradients.begin(), sortedListGradients.end(), [](std::pair<uint32_t, std::pair<int, int>>& a,
             std::pair<uint32_t, std::pair<int, int>>& b) { return a.first > b.first; });
         std::sort(sortedListGradientsFloat.begin(), sortedListGradientsFloat.end(), [](std::pair<float, std::pair<int, int>>& a,
             std::pair<float, std::pair<int, int>>& b) { return a.first > b.first; });
 
-        for (int i = 0; i < 1000; ++i) {
-            Point pt;
-            //pt.y = sortedListGradients[i].second.first ;
-            //pt.x = sortedListGradients[i].second.second;
-            //std::cout << sortedListGradients[i].first << std::endl;
-            pt.y = sortedListGradientsFloat[i].second.first ;
-            pt.x = sortedListGradientsFloat[i].second.second;
-            //std::cout << sortedListGradientsFloat[i].first << std::endl;
+        std::cout << "Pixel Radius Detail :" << argv[1] << std::endl;
+        std::cout << "Number of pixels for tesselation : " << argv[2] << std::endl;
+        const int pixelRadiusDetail = std::stoi(std::string(argv[1]));
+        const int numPixelTesselation = std::stoi(std::string(argv[2]));
 
+        std::vector<std::pair<int, int>> officialPixels;
+        officialPixels.push_back({ sortedListGradientsFloat[0].second.first, sortedListGradientsFloat[0].second.second });
+        int currentI = 1;
+        while (officialPixels.size() < numPixelTesselation) {
+            bool collision = false;
+            
+            for (; currentI < sortedListGradientsFloat.size(); ++currentI) {
+                for (int i = 0; i < officialPixels.size() && !collision; ++i) {
+                    if (sqrt(pow(officialPixels[i].first - sortedListGradientsFloat[currentI].second.first, 2) +
+                        pow(officialPixels[i].second - sortedListGradientsFloat[currentI].second.second, 2)) < pixelRadiusDetail)
+                        collision = true;
+                }
+                if (collision == false) {
+                    officialPixels.push_back({ sortedListGradientsFloat[currentI].second.first,
+                                               sortedListGradientsFloat[currentI].second.second });
+                    break;
+                }
+                collision = false;
+            }
+        }
+
+        for (int i = 0; i < officialPixels.size(); ++i) {
+            Point pt;
+            pt.y = officialPixels[i].first;
+            pt.x = officialPixels[i].second;
             cv::circle(imageOut, pt, 2, cv::Scalar(255, 255, 255));
         }
-        
-        CHECK_CV(imwrite(".\\standard_test_images\\standard_test_images\\lena_color_256.png", imageOut));
+        CHECK_CV(imwrite(".\\standard_test_images\\standard_test_images\\output.png", imageOut));
+
+
 
         if (CV_SUCCESS == true) printf("\nSuccess !\n");
 
