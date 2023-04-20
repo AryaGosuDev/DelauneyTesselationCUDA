@@ -10,7 +10,9 @@
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
+#include "DT.cuh"
 
+ 
 using namespace cv;
 cudaTextureObject_t texObjLinear;
 cudaSurfaceObject_t  outputSurfRef;
@@ -19,6 +21,11 @@ cudaArray* d_imageArray = 0;
 size_t pitch;
 uchar* d_img;
 
+struct TriangleNodes {
+    TriangleNodes() = default;
+    Triangle t;
+};
+ 
 #define checkCudaErrors(call) { \
     const cudaError_t error = call; \
     if (error != cudaSuccess) {\
@@ -318,6 +325,15 @@ void initSurface(int w, int h) {
     cudaCreateSurfaceObject(&outputSurfRef, &resDesc);
 }
 
+
+void DelauneyTesselation(std::vector<std::pair<int, int>> officialPixels) {
+
+    //pick p0 point, highest right most point
+
+    //points p_1 and p_2 that are exceptionally far away from the point set P to become the initial triangle
+
+}
+
 int main(int argc, char *argv[]) {
     try {
         
@@ -394,7 +410,7 @@ int main(int argc, char *argv[]) {
         std::cout << "Number of pixels for tesselation : " << argv[2] << std::endl;
         const int pixelRadiusDetail = std::stoi(std::string(argv[1]));
         const int numPixelTesselation = std::stoi(std::string(argv[2]));
-
+         
         std::vector<std::pair<int, int>> officialPixels;
         officialPixels.push_back({ sortedListGradientsFloat[0].second.first, sortedListGradientsFloat[0].second.second });
         int currentI = 1;
@@ -422,12 +438,11 @@ int main(int argc, char *argv[]) {
             pt.x = officialPixels[i].second;
             cv::circle(imageOut, pt, 2, cv::Scalar(255, 255, 255));
         }
+         
+        performDS(officialPixels, image, imageOut);
+
         CHECK_CV(imwrite(".\\standard_test_images\\standard_test_images\\output.png", imageOut));
-
-
-
         if (CV_SUCCESS == true) printf("\nSuccess !\n");
-
     }
     catch (Exception ex) {
         std::cerr << ex.what() << std::endl;
