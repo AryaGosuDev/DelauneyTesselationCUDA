@@ -1,3 +1,4 @@
 Delauney Tesselation image filter
 
-![Alt text](standard_test_images/standard_test_images/emma_512.tif "Title")
+
+![emma_512](https://user-images.githubusercontent.com/3598240/234775629-a062dcbc-c031-401d-9ff4-a9184972dd0e.png)
