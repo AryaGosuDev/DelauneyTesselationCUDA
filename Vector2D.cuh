@@ -18,7 +18,7 @@
 constexpr double EPSILON = 0.00001;
 constexpr int LINKS_SIZE = 3;
 
-static char labelIter = 'A';
+static int labelIter = 0;
 struct TreeNode;
 
 struct Vec2 {
@@ -74,12 +74,14 @@ inline Circle createCircle(const Triangle& t, const std::vector<std::pair<int, i
 	caStart.x += 0.5 * caDir.x; caStart.y += 0.5 * caDir.y;
 	double t1 = 0.0, t2 = 0.0;
 	Vec2 b(caStart.x - baStart.x, caStart.y - baStart.y);
-	double inverseDet = baDir.x * (-1.0 * caDir.y) - baDir.y * (-1.0 * caDir.x);
+	Vec2 perpBADir(-1.0 * baDir.y, baDir.x); Vec2 perpCADir(-1.0 * caDir.y, caDir.x);
+	double inverseDet = perpBADir.x * -perpCADir.y - (perpBADir.y * -perpCADir.x);
 	if (inverseDet == 0.0) { c.r = 0; return c; }
 	else inverseDet = 1.0 / inverseDet;
-	t1 = (-1.0 * caDir.y) * b.x + (caDir.x) * b.y; t1 /= inverseDet;
-	c.c.x = baStart.x + t1 * baDir.x; c.c.y = baStart.y + t1 * baDir.y;
-	c.r = distanceEqnt(c.c, t.v1);
+	t1 = inverseDet * (-perpCADir.y * b.x + perpCADir.x * b.y);
+	c.c.x = baStart.x + t1 * perpBADir.x; c.c.y = baStart.y + t1 * perpBADir.y;
+	Vec2 r(hashPoints[t.v1_indx].second, hashPoints[t.v1_indx].first);
+	c.r = distanceEqnt(c.c, r);
 	return c;
 }
 
@@ -101,13 +103,12 @@ struct TreeNode {
 
 	bool isInternal;
 	std::vector<TreeNode*> parent;
-	char label;
+	int label;
 	Triangle triangle;
 	TreeNode* links[3];
 	std::vector<TreeNode*> adjList;
 	std::vector<TreeNode*> adjSiblings;
-
-
+	cv::Vec3b color;
 };
 
 Vec2 operator + (const Vec2& v1, const Vec2& v2) {
@@ -115,4 +116,7 @@ Vec2 operator + (const Vec2& v1, const Vec2& v2) {
 }
 Vec2 operator -(const Vec2& v1, const Vec2& v2) {
 	return Vec2(v1.x - v2.x, v1.y - v2.y);
+}
+inline double operator^(const Vec2& A, const Vec2& B){
+	return A.x * B.y - A.y * B.x;
 }

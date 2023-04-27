@@ -2,9 +2,50 @@
 
 #include "Vector2D.cuh"
 
+
 std::ostream& operator << (std::ostream& os,  const std::pair<int,int>& p) {
 	os << -p.first << "," << p.second;
 	return os;
+}
+
+void extractUV(double & u, double & v, const cv::Point & pt, TreeNode * root, const std::vector<std::pair<int, int>>& hashPoints) {
+
+	Triangle& tri = root->triangle;
+	Vec2 v2v1 (hashPoints[tri.v2_indx].second - hashPoints[tri.v1_indx].second,
+			-hashPoints[tri.v2_indx].first + hashPoints[tri.v1_indx].first);
+	Vec2 v3v1(hashPoints[tri.v3_indx].second - hashPoints[tri.v1_indx].second,
+			-hashPoints[tri.v3_indx].first + hashPoints[tri.v1_indx].first);
+	Vec2 v3v2(hashPoints[tri.v3_indx].second - hashPoints[tri.v2_indx].second,
+			-hashPoints[tri.v3_indx].first + hashPoints[tri.v2_indx].first);
+	Vec2 v1v3(hashPoints[tri.v1_indx].second - hashPoints[tri.v3_indx].second,
+			-hashPoints[tri.v1_indx].first + hashPoints[tri.v3_indx].first);
+	double area = (v3v1 ^ v2v1) / 2.0;
+
+	/*
+	// edge 1
+	Vec3f edge1 = v2 - v1;
+	Vec3f vp1 = P - v1;
+	C = edge1.crossProduct(vp1);
+	u = (C.length() / 2) / area;
+	if (N.dotProduct(C) < 0)  return false; // P is on the right side
+
+	// edge 2
+	Vec3f edge2 = v0 - v2;
+	Vec3f vp2 = P - v2;
+	C = edge2.crossProduct(vp2);
+	v = (C.length() / 2) / area;
+	if (N.dotProduct(C) < 0) return false; // P is on the right side;
+	*/
+
+	Vec2 prv2(pt.x - hashPoints[tri.v2_indx].second,
+		pt.y + hashPoints[tri.v2_indx].first);
+
+	u = ((prv2 ^ v3v2) / 2.0) / area;
+
+	Vec2 prv3(pt.x - hashPoints[tri.v3_indx].second,
+		pt.y + hashPoints[tri.v3_indx].first);
+
+	v = ((prv3 ^ v1v3) / 2.0) / area;
 }
 
 void createDOTFile(TreeNode* root, const std::vector<std::pair<int, int>>& hashPoints, int indx) {
@@ -66,7 +107,7 @@ void createDOTFile(TreeNode* root, const std::vector<std::pair<int, int>>& hashP
 	for (auto& v : CFGTree) {
 		myfile << CFGLabels[v.first] << "->" << CFGLabels[v.second] << ";\n";
 	}
-
+	/*
 	for (auto& v : CFGLabels) {
 		TreeNode* root = v.first;
 		if (root != NULL) {
@@ -78,7 +119,7 @@ void createDOTFile(TreeNode* root, const std::vector<std::pair<int, int>>& hashP
 			}
 		}
 	}
-		
+		*/
 	myfile << "}";
 	myfile.close();
 }
@@ -358,7 +399,7 @@ void legalizeEdge(int pr_indx, int pi, int pj, TreeNode* root, const std::vector
 			isEdgeLegal = min(pi, pj) > pk;
 		else {
 			Circle c = createCircle(root->triangle, hashPoints); Vec2 center = c.c; Vec2 pk_loc(hashPoints[pk].second, hashPoints[pk].first);
-			bool isEdgeLegal = distanceEqnt(center, pk_loc) >= c.r;
+			isEdgeLegal = distanceEqnt(center, pk_loc) >= c.r;
 		}
 		//edge pi -> pj or pj -> pi is not a legal edge
 		//split triangle, create two new triangles
@@ -411,6 +452,120 @@ void legalizeEdge(int pr_indx, int pi, int pj, TreeNode* root, const std::vector
 			return;
 		}
 	}
+}
+
+
+void colorImage(TreeNode* root, cv::Mat imgO, const std::vector<std::pair<int, int>>& hashPoints) {
+
+	cv::Mat imageOut(imgO.rows, imgO.cols, CV_8UC3);
+	std::unordered_set<TreeNode*> leafNodes;
+	std::queue<TreeNode* > q;
+	q.push(root);
+	while (!q.empty()) {
+		auto top = q.front();
+		if (top->isInternal == true) {
+			for (int i = 0; i < LINKS_SIZE; ++i) {
+				if (top->links[i] != NULL)
+					q.push(top->links[i]);
+			}
+		}
+		else leafNodes.insert(top);
+		q.pop();
+	}
+
+	for (auto& v : leafNodes) {
+		if (v->triangle.v1_indx != -1 && v->triangle.v1_indx != -2 &&
+			v->triangle.v2_indx != -1 && v->triangle.v2_indx != -2 &&
+			v->triangle.v3_indx != -1 && v->triangle.v3_indx != -2) {
+			cv::Vec3b coloredPoint1, coloredPoint2, coloredPoint3;
+			cv::Point pt1; pt1.x = hashPoints[v->triangle.v1_indx].second; pt1.y = -hashPoints[v->triangle.v1_indx].first;
+			cv::Point pt2; pt2.x = hashPoints[v->triangle.v2_indx].second; pt2.y = -hashPoints[v->triangle.v2_indx].first;
+			cv::Point pt3; pt3.x = hashPoints[v->triangle.v3_indx].second; pt3.y = -hashPoints[v->triangle.v3_indx].first;
+			coloredPoint1 = imgO.at<cv::Vec3b>(pt1); coloredPoint2 = imgO.at<cv::Vec3b>(pt2); coloredPoint3 = imgO.at<cv::Vec3b>(pt3);
+			v->color[0] = (coloredPoint1[0] + coloredPoint2[0] + coloredPoint3[0]) / 3;
+			v->color[1] = (coloredPoint1[1] + coloredPoint2[1] + coloredPoint3[1]) / 3;
+			v->color[2] = (coloredPoint1[2] + coloredPoint2[2] + coloredPoint3[2]) / 3;
+		}
+	}
+
+	for (int i = 0; i < imageOut.rows; ++i) {
+		for (int j = 0; j < imageOut.cols; ++j) {
+			cv::Point pt; pt.x = i; pt.y = j;
+			cv::Vec3b inputColor; inputColor[0] = inputColor[1] = inputColor[2] = 255;
+			imageOut.at<cv::Vec3b>(pt) = inputColor;
+			for (auto& v : leafNodes) {
+				if (v->triangle.v1_indx != -1 && v->triangle.v1_indx != -2 &&
+					v->triangle.v2_indx != -1 && v->triangle.v2_indx != -2 &&
+					v->triangle.v3_indx != -1 && v->triangle.v3_indx != -2) {
+
+					int side1 = 0, side2 = 0, side3 = 0;
+					Vec2 tempVec(hashPoints[v->triangle.v2_indx].second - hashPoints[v->triangle.v1_indx].second,
+						-hashPoints[v->triangle.v2_indx].first + hashPoints[v->triangle.v1_indx].first);
+					Vec2 tempPr( pt.x - hashPoints[v->triangle.v1_indx].second, pt.y + hashPoints[v->triangle.v1_indx].first);
+					double tempDeter = tempVec.x * tempPr.y - tempVec.y * tempPr.x;
+					if (abs(tempDeter - 0.0) < EPSILON) side1 = 0;
+					if (tempDeter < 0.0) side1 = -1; else side1 = 1;
+
+					tempVec.x = hashPoints[v->triangle.v3_indx].second - hashPoints[v->triangle.v2_indx].second;
+					tempVec.y = -hashPoints[v->triangle.v3_indx].first + hashPoints[v->triangle.v2_indx].first;
+					tempPr.x = pt.x - hashPoints[v->triangle.v2_indx].second;
+					tempPr.y = pt.y + hashPoints[v->triangle.v2_indx].first;
+					tempDeter = tempVec.x * tempPr.y - tempVec.y * tempPr.x;
+					if (abs(tempDeter - 0.0) < EPSILON) side2 = 0;
+					if (tempDeter < 0.0) side2 = -1; else side2 = 1;
+
+					tempVec.x = hashPoints[v->triangle.v1_indx].second - hashPoints[v->triangle.v3_indx].second;
+					tempVec.y = -hashPoints[v->triangle.v1_indx].first + hashPoints[v->triangle.v3_indx].first;
+					tempPr.x = pt.x - hashPoints[v->triangle.v3_indx].second;
+					tempPr.y = pt.y + hashPoints[v->triangle.v3_indx].first;
+					tempDeter = tempVec.x * tempPr.y - tempVec.y * tempPr.x;
+					if (abs(tempDeter - 0.0) < EPSILON) side3 = 0;
+					if (tempDeter < 0.0) side3 = -1; else side3 = 1;
+
+					if ((side1 == side2 && side1 == side3 && side3 == side2) || ( side1 == 0 || side2 == 0 || side3 == 0) ) {
+						double uu, vv;
+						extractUV(uu, vv,pt,  v,  hashPoints);
+						cv::Point pt1; pt1.x = hashPoints[v->triangle.v1_indx].second; pt1.y = -hashPoints[v->triangle.v1_indx].first;
+						cv::Point pt2; pt2.x = hashPoints[v->triangle.v2_indx].second; pt2.y = -hashPoints[v->triangle.v2_indx].first;
+						cv::Point pt3; pt3.x = hashPoints[v->triangle.v3_indx].second; pt3.y = -hashPoints[v->triangle.v3_indx].first;
+						cv::Point finalPt;
+						/*
+						if (pt1.y > pt2.y) {
+							if (pt1.y > pt3.y) {
+								finalPt.x = pt1.x; finalPt.y = pt1.y;
+							}
+							else {
+								finalPt.x = pt3.x; finalPt.y = pt3.y;
+							}
+						}
+						else {
+							if (pt2.y > pt3.y) {
+								finalPt.x = pt2.x; finalPt.y = pt2.y;
+							}
+							else {
+								finalPt.x = pt3.x; finalPt.y = pt3.y;
+							}
+						}
+						*/
+						
+						for (int ii = 0; ii < 3; ++ii) {
+							
+							inputColor[ii] = uu * (imgO.at<cv::Vec3b>(pt1))[ii] +
+								vv * (imgO.at<cv::Vec3b>(pt2))[ii] +
+								(1.0 - uu - vv) * (imgO.at<cv::Vec3b>(pt3))[ii];
+						}
+						
+						//inputColor[0] = (imgO.at<cv::Vec3b>(finalPt))[0]; inputColor[1] = (imgO.at<cv::Vec3b>(finalPt))[1];
+						//inputColor[2] = (imgO.at<cv::Vec3b>(finalPt))[2];
+						//inputColor = imageOut.at<cv::Vec3b>(finalPt);
+						imageOut.at<cv::Vec3b>(pt) = inputColor;
+						break;
+					}
+				}
+			}
+		}
+	}
+	imwrite(".\\standard_test_images\\standard_test_images\\outputFinal.png", imageOut);
 }
 
 void performDS(std::vector<std::pair<int, int>>& hashPoints, cv::Mat& image, cv::Mat& outImage) {
@@ -487,7 +642,8 @@ void performDS(std::vector<std::pair<int, int>>& hashPoints, cv::Mat& image, cv:
 			legalizeEdge(i, pi, pl, tri3, hashPoints);
 			legalizeEdge(i, pj, pl, tri4, hashPoints);
 		}
-		triangleImage(root, image, i, hashPoints);
-		createDOTFile(root, hashPoints, i);
+		//triangleImage(root, image, i, hashPoints);
+		colorImage(root, image, hashPoints);
+		//createDOTFile(root, hashPoints, i);
 	}
 }
