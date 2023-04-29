@@ -160,7 +160,7 @@ void triangleImage(TreeNode* root, cv::Mat imgO, int indx, const std::vector<std
 		cv::circle(imageOut, ptTemp1, 4, cv::Scalar(255, 0, 0));
 		cv::circle(imageOut, ptTemp2, 4, cv::Scalar(0, 255, 0));
 		cv::circle(imageOut, ptTemp3, 4, cv::Scalar(0, 0, 255));
-		cv::fillPoly(imageOut, pts, cv::Scalar(255/20 * i, 255 / 20 * i, 255 / 20 * i));
+		cv::fillPoly(imageOut, pts, cv::Scalar(255/50 * i, 255 / 50 * i, 255 / 50 * i));
 	}
 	cv::Point pt;
 	pt.y = -hashPoints[indx + 1].first;
@@ -547,16 +547,16 @@ void colorImage(TreeNode* root, cv::Mat imgO, const std::vector<std::pair<int, i
 							}
 						}
 						*/
-						
+						/*
 						for (int ii = 0; ii < 3; ++ii) {
 							
 							inputColor[ii] = uu * (imgO.at<cv::Vec3b>(pt1))[ii] +
 								vv * (imgO.at<cv::Vec3b>(pt2))[ii] +
 								(1.0 - uu - vv) * (imgO.at<cv::Vec3b>(pt3))[ii];
 						}
-						
-						//inputColor[0] = (imgO.at<cv::Vec3b>(finalPt))[0]; inputColor[1] = (imgO.at<cv::Vec3b>(finalPt))[1];
-						//inputColor[2] = (imgO.at<cv::Vec3b>(finalPt))[2];
+						*/
+						inputColor[0] = v->color[0]; inputColor[1] = v->color[1];
+						inputColor[2] = v->color[2];
 						//inputColor = imageOut.at<cv::Vec3b>(finalPt);
 						imageOut.at<cv::Vec3b>(pt) = inputColor;
 						break;

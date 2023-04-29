@@ -443,7 +443,8 @@ int main(int argc, char *argv[]) {
             pt.x = officialPixels[i].second;
             cv::circle(imageOut, pt, 2, cv::Scalar(255, 255, 255));
         }
-         */
+        */
+         
         //officialPixels.clear(); officialPixels.resize(10);
         //officialPixels[0] = { 5,5 }; officialPixels[1] = { 4,5 }; officialPixels[2] = { 3,4 }; officialPixels[3] = { 2,4 }; officialPixels[4] = { 1,7 };
         //officialPixels[5] = { 0,0 }; officialPixels[6] = { 3,3 }; officialPixels[6] = { 6,1 }; officialPixels[6] = { 4,6 }; officialPixels[6] = { 1,1 };
@@ -452,7 +453,7 @@ int main(int argc, char *argv[]) {
         }   
                      
         performDS(officialPixels, image, imageOut);
-                                                                            
+                                                                               
         CHECK_CV(imwrite(".\\standard_test_images\\standard_test_images\\output.png", imageOut));
         if (CV_SUCCESS == true) printf("\nSuccess !\n");
     }    
