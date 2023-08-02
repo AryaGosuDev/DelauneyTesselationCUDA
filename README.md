@@ -16,3 +16,5 @@ Delauney Tesselation image filter
 ![outputFinal](https://user-images.githubusercontent.com/3598240/234981307-c7b2324e-2524-419f-9ad6-4750ac79e157.png)
 
 ![outputFinal](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/246a0de9-411c-4cc4-8ae6-ca32570df4f9)
+
+![outputFinal](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/6334740e-6d79-43e9-9e8c-17d0953cbabb)
