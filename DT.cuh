@@ -2,7 +2,6 @@
 
 #include "Vector2D.cuh"
 
-
 std::ostream& operator << (std::ostream& os,  const std::pair<int,int>& p) {
 	os << -p.first << "," << p.second;
 	return os;
@@ -287,6 +286,16 @@ void addAdjTriangle(TreeNode* root, const std::vector<std::pair<int, int>>& hash
 	}
 }
 
+bool pointInTriangle(const cv::Point& pt, const cv::Point& v1, const cv::Point& v2, const cv::Point& v3) {
+	double denom = ((v2.y - v3.y) * (v1.x - v3.x) + (v3.x - v2.x) * (v1.y - v3.y));
+	double a = ((v2.y - v3.y) * (pt.x - v3.x) + (v3.x - v2.x) * (pt.y - v3.y)) / denom;
+	double b = ((v3.y - v1.y) * (pt.x - v3.x) + (v1.x - v3.x) * (pt.y - v3.y)) / denom;
+	double c = 1 - a - b;
+
+	// if all barycentric coordinates are within the range [0,1], the point is inside the triangle
+	return 0 <= a && a <= 1 && 0 <= b && b <= 1 && 0 <= c && c <= 1;
+}
+
 int calculate2DlineSideTest(int pi, int pj, int pr, const std::vector<std::pair<int, int>>& hashPoints) {
 	//return 1 if pr is on left side of vector pi -> pj
 	//return -1 if on right
@@ -359,8 +368,8 @@ std::list<listNode> searchForTriangles(TreeNode* root, int pr_indx, const std::v
 					listNode tempListNodeAdj; tempListNodeAdj.incTri2 = adjTri;
 					returnList.push_back(tempListNode); returnList.push_back(tempListNodeAdj);
 				}
+				return returnList;
 			}
-			return returnList;
 		}
 		//does not lie on the line of the triangle
 		//is the point contained within the triangle?
@@ -408,7 +417,7 @@ void legalizeEdge(int pr_indx, int pi, int pj, TreeNode* root, const std::vector
 		//if they both lie on the same side of the newly flipped edge then the convex hull is illigitemate and the edge is legal
 		//if they are both on opposite sides of the newly flipped edge then its a legitamte flip
 		if (!isEdgeLegal) {
-			std::cout << "Illegal edge detected" << std::endl;
+			//std::cout << "Illegal edge detected" << std::endl;
 			if (pi == -1 || pi == -2 || pj == -1 || pj == -2) {
 				if (pk == -1 || pk == -2) return;
 				Vec2 a(hashPoints[pk].second - hashPoints[pr_indx].second, hashPoints[pk].first - hashPoints[pr_indx].first);
@@ -454,7 +463,6 @@ void legalizeEdge(int pr_indx, int pi, int pj, TreeNode* root, const std::vector
 	}
 }
 
-
 void colorImage(TreeNode* root, cv::Mat imgO, const std::vector<std::pair<int, int>>& hashPoints) {
 
 	cv::Mat imageOut(imgO.rows, imgO.cols, CV_8UC3);
@@ -481,13 +489,31 @@ void colorImage(TreeNode* root, cv::Mat imgO, const std::vector<std::pair<int, i
 			cv::Point pt1; pt1.x = hashPoints[v->triangle.v1_indx].second; pt1.y = -hashPoints[v->triangle.v1_indx].first;
 			cv::Point pt2; pt2.x = hashPoints[v->triangle.v2_indx].second; pt2.y = -hashPoints[v->triangle.v2_indx].first;
 			cv::Point pt3; pt3.x = hashPoints[v->triangle.v3_indx].second; pt3.y = -hashPoints[v->triangle.v3_indx].first;
-			coloredPoint1 = imgO.at<cv::Vec3b>(pt1); coloredPoint2 = imgO.at<cv::Vec3b>(pt2); coloredPoint3 = imgO.at<cv::Vec3b>(pt3);
-			v->color[0] = (coloredPoint1[0] + coloredPoint2[0] + coloredPoint3[0]) / 3;
-			v->color[1] = (coloredPoint1[1] + coloredPoint2[1] + coloredPoint3[1]) / 3;
-			v->color[2] = (coloredPoint1[2] + coloredPoint2[2] + coloredPoint3[2]) / 3;
+			int sum[3] = { 0, 0, 0 }; int count = 0;
+			for (int i = std::min({ pt1.y, pt2.y, pt3.y }); i <= std::max({ pt1.y, pt2.y, pt3.y }); i++) {
+				for (int j = std::min({ pt1.x, pt2.x, pt3.x }); j <= std::max({ pt1.x, pt2.x, pt3.x }); j++) {
+					cv::Point pt(j, i);
+					if (pointInTriangle(pt, pt1, pt2, pt3)) {
+						cv::Vec3b color = imgO.at<cv::Vec3b>(pt);
+						sum[0] += color[0];
+						sum[1] += color[1];
+						sum[2] += color[2];
+						count++;
+					}
+				}
+			}
+			//coloredPoint1 = imgO.at<cv::Vec3b>(pt1); coloredPoint2 = imgO.at<cv::Vec3b>(pt2); coloredPoint3 = imgO.at<cv::Vec3b>(pt3);
+			//v->color[0] = (coloredPoint1[0] + coloredPoint2[0] + coloredPoint3[0]) / 3;
+			//v->color[1] = (coloredPoint1[1] + coloredPoint2[1] + coloredPoint3[1]) / 3;
+			//v->color[2] = (coloredPoint1[2] + coloredPoint2[2] + coloredPoint3[2]) / 3;
+			// Compute average color
+			if (count == 0) count = 1;
+			v->color[0] = sum[0] / count;
+			v->color[1] = sum[1] / count;
+			v->color[2] = sum[2] / count;
 		}
 	}
-
+	 
 	for (int i = 0; i < imageOut.rows; ++i) {
 		for (int j = 0; j < imageOut.cols; ++j) {
 			cv::Point pt; pt.x = i; pt.y = j;
@@ -614,7 +640,7 @@ void performDS(std::vector<std::pair<int, int>>& hashPoints, cv::Mat& image, cv:
 		//is contained on the line, so is contained in two triangles
 		//this creates 4 new triangles
 		else {
-			std::cout << "Landed on line" << std::endl;
+			//std::cout << "Landed on line" << std::endl;
 			TreeNode* triInc1 = triList.front().incTri1; TreeNode* triInc2 = triList.back().incTri2;
 			int pk = triList.front().pk; int pi = triList.front().pi; int pj = triList.front().pj;
 			TreeNode* tri1 = new TreeNode(i, pi, pk, triInc1);
@@ -643,7 +669,9 @@ void performDS(std::vector<std::pair<int, int>>& hashPoints, cv::Mat& image, cv:
 			legalizeEdge(i, pj, pl, tri4, hashPoints);
 		}
 		//triangleImage(root, image, i, hashPoints);
-		colorImage(root, image, hashPoints);
+		//colorImage(root, image, hashPoints);
 		//createDOTFile(root, hashPoints, i);
+		 
 	}
+	colorImage(root, image, hashPoints);
 }
