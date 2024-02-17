@@ -16,13 +16,11 @@ GraphViz commands : dot -Tpng dot.dot -o outputDot.png
 #include <iostream>
 #include <math.h>
 #include "DT.cuh"
+#include "CUDA_DT.cuh"
 
- 
 using namespace cv;
 cudaTextureObject_t texObjLinear;
 cudaSurfaceObject_t  outputSurfRef;
-constexpr bool CV_SUCCESS = true;
-cudaArray* d_imageArray = 0;
 size_t pitch;
 uchar* d_img;
 
@@ -30,24 +28,6 @@ struct TriangleNodes {
     TriangleNodes() = default;
     Triangle t;
 };
- 
-#define checkCudaErrors(call) { \
-    const cudaError_t error = call; \
-    if (error != cudaSuccess) {\
-        printf("Error : %s:%d, ", __FILE__, __LINE__); \
-        printf("code:%d, reason : %s\n", error, cudaGetErrorName(error)); \
-        exit(-10 * error);\
-    } \
-} \
-
-#define CHECK_CV(call) { \
-    const bool error = call; \
-    if (error != CV_SUCCESS) {\
-        printf("Error : %s:%d, ", __FILE__, __LINE__); \
-        printf("code:%d, reason\n", error); \
-        exit(-10 * error);\
-    } \
-} \
 
 // convert floating point rgba color to 32-bit integer
 __device__ unsigned int rgbaFloatToInt(float4 rgba) {
@@ -211,7 +191,7 @@ void returnGPUCudaInfoResources(int deviceID) {
 
     int deviceCount = 0;
     cudaGetDeviceCount(&deviceCount);
-
+     
     if (deviceCount == 0)
     {
         printf("There are no available device(s) that support CUDA\n");
@@ -220,10 +200,10 @@ void returnGPUCudaInfoResources(int deviceID) {
     {
         printf("Detected %d CUDA Capable device(s)\n", deviceCount);
     }
-
+     
     int dev = 0, driverVersion = 0, runtimeVersion = 0;
     checkCudaErrors(cudaSetDevice(deviceID));
-
+      
     cudaDeviceProp deviceProp;
     checkCudaErrors(cudaGetDeviceProperties(&deviceProp, dev));
 
@@ -330,15 +310,6 @@ void initSurface(int w, int h) {
     cudaCreateSurfaceObject(&outputSurfRef, &resDesc);
 }
 
-
-void DelauneyTesselation(std::vector<std::pair<int, int>> officialPixels) {
-
-    //pick p0 point, highest right most point
-
-    //points p_1 and p_2 that are exceptionally far away from the point set P to become the initial triangle
-
-}
-
 int main(int argc, char *argv[]) {
     try {
         
@@ -405,7 +376,7 @@ int main(int argc, char *argv[]) {
                     std::pair<int, int>(i, j)));
             }
         }
-
+         
         std::sort(sortedListGradients.begin(), sortedListGradients.end(), [](std::pair<uint32_t, std::pair<int, int>>& a,
             std::pair<uint32_t, std::pair<int, int>>& b) { return a.first > b.first; });
         std::sort(sortedListGradientsFloat.begin(), sortedListGradientsFloat.end(), [](std::pair<float, std::pair<int, int>>& a,
@@ -416,6 +387,8 @@ int main(int argc, char *argv[]) {
         const int pixelRadiusDetail = std::stoi(std::string(argv[1]));
         const int numPixelTesselation = std::stoi(std::string(argv[2]));
          
+        //extract POIs that are contained within a distance from other POIs, based upon the number of POI and a respective exclusion radius.
+        //the final POIs are just pixel coord on the image as pair<int,int>
         std::vector<std::pair<int, int>> officialPixels;
         officialPixels.push_back({ sortedListGradientsFloat[0].second.first, sortedListGradientsFloat[0].second.second });
         int currentI = 1;
@@ -436,12 +409,12 @@ int main(int argc, char *argv[]) {
                 collision = false;
             }
         }
+
         /**************************************************************************************
         Positive y moves down the image
         Positive x moves right on the image
-        
         ***************************************************************************************/
-        
+        //draw POI on image
         for (int i = 0; i < officialPixels.size(); ++i) {
             Point pt;
             pt.y = officialPixels[i].first;
@@ -449,22 +422,20 @@ int main(int argc, char *argv[]) {
             cv::circle(imageOut, pt, 2, cv::Scalar(255, 255, 255));
         }
             
-        CHECK_CV(imwrite(".\\standard_test_images\\standard_test_images\\output.png", imageOut));
-        //officialPixels.clear(); officialPixels.resize(10);
-        //officialPixels[0] = { 5,5 }; officialPixels[1] = { 4,5 }; officialPixels[2] = { 3,4 }; officialPixels[3] = { 2,4 }; officialPixels[4] = { 1,7 };
-        //officialPixels[5] = { 0,0 }; officialPixels[6] = { 3,3 }; officialPixels[6] = { 6,1 }; officialPixels[6] = { 4,6 }; officialPixels[6] = { 1,1 };
-        for (auto & v : officialPixels) {
-            v.first *= -1;
-        }   
-                       
-        performDS(officialPixels, image, imageOut);
-                                                                               
+        imwrite(".\\standard_test_images\\standard_test_images\\output.png", imageOut);
+        //for (auto & v : officialPixels) v.first *= -1;
         
-        if (CV_SUCCESS == true) printf("\nSuccess !\n");
+        //bowyer-watson DT, incremental
+        //performDS(officialPixels, image, imageOut);
+         
+        //parallel CUDA delauney tesselation using initial voronai diagram creation
+        CUDA_DT(officialPixels, image, imageOut );
+                      
+        printf("\nSuccess !\n");
     }    
     catch (Exception ex) {
         std::cerr << ex.what() << std::endl;
-    } 
+    }  
       
     return 0;
 }
