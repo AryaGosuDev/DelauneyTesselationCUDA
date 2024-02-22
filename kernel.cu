@@ -5,6 +5,7 @@ GraphViz commands : dot -Tpng dot.dot -o outputDot.png
 */
 
 #include "cuda_runtime.h"
+#include "device_functions.h"
 #include "device_launch_parameters.h"
 
 #include "opencv2/core/utility.hpp"
@@ -15,6 +16,7 @@ GraphViz commands : dot -Tpng dot.dot -o outputDot.png
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
+#include <stack>
 #include "DT.cuh"
 #include "CUDA_DT.cuh"
 
@@ -310,7 +312,7 @@ void initSurface(int w, int h) {
     cudaCreateSurfaceObject(&outputSurfRef, &resDesc);
 }
 
-int main(int argc, char *argv[]) {
+ int main(int argc, char *argv[]) {
     try {
         
         returnGPUCudaInfoResources(0);
@@ -424,14 +426,25 @@ int main(int argc, char *argv[]) {
             
         imwrite(".\\standard_test_images\\standard_test_images\\output.png", imageOut);
         //for (auto & v : officialPixels) v.first *= -1;
-        
+
+        //write official pixels to output file
+        /*
+        std::ofstream pxlFile(".\\standard_test_images\\standard_test_images\\officialPixels.txt");
+        if (!pxlFile.is_open())
+            std::cerr << "Failed to open the file for writing.\n";
+        for (size_t i = 0; i < officialPixels.size(); ++i) {
+            pxlFile << officialPixels[i].first << "," << officialPixels[i].second << "\n";
+        }
+        pxlFile.close();
+        */
+
         //bowyer-watson DT, incremental
         //performDS(officialPixels, image, imageOut);
-         
-        //parallel CUDA delauney tesselation using initial voronai diagram creation
-        CUDA_DT(officialPixels, image, imageOut );
-                      
-        printf("\nSuccess !\n");
+           
+        //parallel CUDA delauney tesselation using initial voronai diagram to delaunay
+        CUDA_DT( officialPixels, image, imageOut );
+              
+        printf("\nSuccess !\n"); 
     }    
     catch (Exception ex) {
         std::cerr << ex.what() << std::endl;

@@ -21,6 +21,18 @@ constexpr int LINKS_SIZE = 3;
 static int labelIter = 0;
 struct TreeNode;
 
+struct Vec2_CU {
+	__device__ Vec2_CU() { x = 0; y = 0; }
+	__device__ Vec2_CU(double a, double b) { x = a; y = b; }
+	__device__ Vec2_CU(Vec2_CU& v) { this->x = v.x; this->y = v.y; }
+	__device__ Vec2_CU& operator= (const Vec2_CU& v) { this->x = v.x; this->y = v.y; return *this; }
+	__device__ void normalizeVec2() {
+		double normFactor = sqrt(x * x + y * y); if (normFactor == 0.0) return; x /= normFactor; y /= normFactor;
+	}
+	double x;
+	double y;
+};
+
 struct Vec2 {
 	inline Vec2() { x = 0; y = 0; }
 	inline Vec2(double a, double b) { x = a; y = b; }
