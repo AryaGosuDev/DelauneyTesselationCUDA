@@ -1,5 +1,6 @@
-Delauney Tesselation image filter
+Delaunay Tesselation image filter
 
+Incremental Bowyer–Watson algorithm
 
 ![emma_512](https://user-images.githubusercontent.com/3598240/234775629-a062dcbc-c031-401d-9ff4-a9184972dd0e.png)
 
@@ -20,3 +21,36 @@ Delauney Tesselation image filter
 ![outputFinal](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/6334740e-6d79-43e9-9e8c-17d0953cbabb)
 
 ![outputFinal](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/3f1aa811-feff-4937-ac8e-fb5825f2566d)
+
+
+CUDA Based Delaunay Tesselation
+
+Seed Creation
+![outputDT1](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/f606066b-6ed4-4cc8-906a-d53ad2f00970)
+
+Voronoi Diagram Creation using 1+JFA ( jump fill algorithm ) in a ping-pong buffer
+
+![outputDT2](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/25593294-4e3a-47d9-ac55-3d8ea71c7c5d)
+
+Fixing island inaccuracies within the voronoi diagram
+
+![outputDT3](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/8b891aa1-ae25-482d-81aa-fa0fd65dccf2)
+
+Creating CH ( graham scan convex hull from original seeds )
+
+![outputCH](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/3cf1f714-bdf8-49f0-b0bc-d46103a23ec3)
+
+Extracting Voronoi sites
+
+![outputDT4](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/764cc26f-ce8e-4d5c-93df-075c96bf0573)
+
+Excluding Voronoi sites outside of CH
+
+![outputDT5](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/871fc316-18ef-4176-a924-9a8ca7ce8971)
+
+Parallel triangultion based on Voronoi sites + post convex hull triangulation. Some voronoi sites integral to the final
+teseelation will be contained outside of the texture. So travling along the convex hull and finding the outside delaunay
+triangles particular to the voronoi sites is necessary.
+
+![outputDTFinal](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/149098da-2019-43b3-8beb-1c3d86605061)
+
