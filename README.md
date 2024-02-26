@@ -48,9 +48,10 @@ Excluding Voronoi sites outside of CH
 
 ![outputDT5](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/871fc316-18ef-4176-a924-9a8ca7ce8971)
 
-Parallel triangultion based on Voronoi sites + post convex hull triangulation. Some voronoi sites integral to the final
-teseelation will be contained outside of the texture. So travling along the convex hull and finding the outside delaunay
-triangles particular to the voronoi sites is necessary.
+Parallel triangulation based on Voronoi sites + post convex hull triangulation. Some voronoi sites integral to the final
+tessellation will be contained outside of the texture. So traveling along the convex hull and finding the outside delaunay
+triangles particular to the voronoi sites are necessary.
+
 
 ![outputDTFinal](https://github.com/AryaGosuDev/DelauneyTesselationCUDA/assets/3598240/149098da-2019-43b3-8beb-1c3d86605061)
 
