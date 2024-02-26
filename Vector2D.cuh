@@ -24,6 +24,7 @@ struct TreeNode;
 struct Vec2_CU {
 	__device__ Vec2_CU() { x = 0; y = 0; }
 	__device__ Vec2_CU(double a, double b) { x = a; y = b; }
+	__device__ Vec2_CU(int _a, int _b) { x = (double)_a; y = (double)_b; }
 	__device__ Vec2_CU(Vec2_CU& v) { this->x = v.x; this->y = v.y; }
 	__device__ Vec2_CU& operator= (const Vec2_CU& v) { this->x = v.x; this->y = v.y; return *this; }
 	__device__ void normalizeVec2() {
@@ -45,11 +46,74 @@ struct Vec2 {
 	double y;
 };
 
+struct Triangle_CU {
+	__device__ Triangle_CU() { }
+	__device__ Triangle_CU(const Triangle_CU& other) { v1_indx = other.v1_indx; v2_indx = other.v2_indx; v3_indx = other.v3_indx; }
+	__device__ Triangle_CU(Vec2_CU& v1, Vec2_CU& v2, Vec2_CU& v3) {
+		this->v1 = v1; this->v2 = v2; this->v3 = v3;
+	}
+	__device__ Triangle_CU(unsigned int& a, unsigned int& b, unsigned int& c) {
+		this->commutativeHash = 0;
+		if (a < b && a < c) {
+			this->v1_indx = a;
+			this->commutativeHash += a;
+			if (b < c) { this->commutativeHash += b * 1000; this->commutativeHash += c * 1000000; this->v2_indx = b;  this->v3_indx = c;}
+			else { this->commutativeHash += c * 1000; this->commutativeHash += b * 1000000; this->v2_indx = c;  this->v3_indx = b; }
+		}
+		else if (b < a && b < c) {
+			this->v1_indx = b;
+			this->commutativeHash += b;
+			if (a < c) { this->commutativeHash += a * 1000; this->commutativeHash += c * 1000000; this->v2_indx = a;  this->v3_indx = c;}
+			else { this->commutativeHash += c * 1000; this->commutativeHash += a * 1000000; this->v2_indx = c;  this->v3_indx = a;}
+		}
+		else {
+			this->v1_indx = c;
+			this->commutativeHash += c;
+			if (a < b) { this->commutativeHash += a * 1000; this->commutativeHash += b * 1000000; this->v2_indx = a;  this->v3_indx = b;}
+			else { this->commutativeHash += b * 1000; this->commutativeHash += a * 1000000; this->v2_indx = b;  this->v3_indx = a;}
+		}
+	}
+	__device__ Triangle_CU& operator= (const Triangle_CU& other) {
+		v1_indx = other.v1_indx; v2_indx = other.v2_indx; v3_indx = other.v3_indx; this->commutativeHash = other.commutativeHash;
+		return *this;
+	}
+	__device__ Vec2_CU operator + (const Vec2_CU& v) {
+		Vec2_CU vTemp; vTemp.x = v1.x - v2.x; vTemp.y = v1.y - v2.y; return vTemp;
+	}
+	uint32_t commutativeHash;
+	Vec2_CU v1; Vec2_CU v2; Vec2_CU v3;
+	int v1_indx; int v2_indx; int v3_indx;
+};
+
 struct Triangle {
 	inline Triangle() { }
-	inline Triangle( const Triangle & other){ v1_indx = other.v1_indx; v2_indx = other.v2_indx; v3_indx = other.v3_indx; }
+	inline Triangle( const Triangle & other){ v1_indx = other.v1_indx; v2_indx = other.v2_indx; v3_indx = other.v3_indx; this->commutativeHash = other.commutativeHash;}
+	inline Triangle( const Triangle_CU& other) {
+		v1_indx = other.v1_indx; v2_indx = other.v2_indx; v3_indx = other.v3_indx; this->commutativeHash = other.commutativeHash;
+	}
 	inline Triangle(Vec2& v1, Vec2& v2, Vec2& v3) {
 		this->v1 = v1; this->v2 = v2; this->v3 = v3;
+	}
+	inline Triangle(unsigned int a, unsigned int b, unsigned int c) {
+		this->commutativeHash = 0;
+		if (a < b && a < c) {
+			this->v1_indx = a;
+			this->commutativeHash += a;
+			if (b < c) { this->commutativeHash += b * 1000; this->commutativeHash += c * 1000000; this->v2_indx = b;  this->v3_indx = c; }
+			else { this->commutativeHash += c * 1000; this->commutativeHash += b * 1000000; this->v2_indx = c;  this->v3_indx = b; }
+		}
+		else if (b < a && b < c) {
+			this->v1_indx = b;
+			this->commutativeHash += b;
+			if (a < c) { this->commutativeHash += a * 1000; this->commutativeHash += c * 1000000; this->v2_indx = a;  this->v3_indx = c; }
+			else { this->commutativeHash += c * 1000; this->commutativeHash += a * 1000000; this->v2_indx = c;  this->v3_indx = a; }
+		}
+		else {
+			this->v1_indx = c;
+			this->commutativeHash += c;
+			if (a < b) { this->commutativeHash += a * 1000; this->commutativeHash += b * 1000000; this->v2_indx = a;  this->v3_indx = b; }
+			else { this->commutativeHash += b * 1000; this->commutativeHash += a * 1000000; this->v2_indx = b;  this->v3_indx = a; }
+		}
 	}
 	inline Triangle& operator= (const Triangle& other) {
 		v1_indx = other.v1_indx; v2_indx = other.v2_indx; v3_indx = other.v3_indx;
@@ -58,9 +122,9 @@ struct Triangle {
 	inline Vec2 operator + (const Vec2& v) {
 		Vec2 vTemp; vTemp.x = v1.x - v2.x; vTemp.y = v1.y - v2.y; return vTemp;
 	}
+	uint32_t commutativeHash;
 	Vec2 v1; Vec2 v2; Vec2 v3;
 	int v1_indx; int v2_indx; int v3_indx;
-	
 };
 
 struct Circle {

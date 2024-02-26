@@ -7,6 +7,7 @@ std::ostream& operator << (std::ostream& os,  const std::pair<int,int>& p) {
 	return os;
 }
 
+// extract UV from location in triangle, barycentric coords
 void extractUV(double & u, double & v, const cv::Point & pt, TreeNode * root, const std::vector<std::pair<int, int>>& hashPoints) {
 
 	Triangle& tri = root->triangle;

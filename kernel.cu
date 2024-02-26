@@ -443,7 +443,7 @@ void initSurface(int w, int h) {
            
         //parallel CUDA delauney tesselation using initial voronai diagram to delaunay
         CUDA_DT( officialPixels, image, imageOut );
-              
+                                                                        
         printf("\nSuccess !\n"); 
     }    
     catch (Exception ex) {
