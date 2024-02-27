@@ -4,6 +4,7 @@ Incremental Bowyer–Watson algorithm
 
 ![emma_512](https://user-images.githubusercontent.com/3598240/234775629-a062dcbc-c031-401d-9ff4-a9184972dd0e.png)
 
+GPGPU Harris corner detection to find POI ( points of interest )
 ![output](https://user-images.githubusercontent.com/3598240/234775999-390ee40f-3ec0-40cf-8ce2-131316b3e73a.png)
 
 ![output18](https://user-images.githubusercontent.com/3598240/234777361-5119ddc1-9898-408b-8f31-9cbd36e60102.png)
